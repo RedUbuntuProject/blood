@@ -33,6 +33,18 @@ class BloodPM:
                     return json.loads(dna_file.read().decode('ascii'))
         except: return None
 
+    def forge(self, source_dir, output_name):
+        if not os.path.exists(os.path.join(source_dir, "dna.json")):
+            print("[-] ERROR: No dna.json found in source directory.")
+            return
+        output_file = f"{output_name}.bld"
+        try:
+            with tarfile.open(output_file, "w:gz") as tar:
+                tar.add(source_dir, arcname=os.path.sep)
+            print(f"[+] FORGED: {output_file} created successfully.")
+        except Exception as e:
+            print(f"[-] FORGE FAILED: {e}")
+
     def fetch_hypernova(self, name):
         print(f"[*] SCANNING HYPERNOVA: Searching for {name} in RedShelf...")
         target_url = f"{self.repo_url}{name}.bld"
@@ -40,8 +52,7 @@ class BloodPM:
         try:
             urllib.request.urlretrieve(target_url, local_path)
             return local_path
-        except:
-            return None
+        except: return None
 
     def hunt_apt(self, name):
         print(f"[*] SCOUTING OS REPOS: Seeking {name}...")
@@ -99,30 +110,64 @@ class BloodPM:
     def eliminate(self, name):
         db_path = os.path.join(self.db_dir, f"{name}.json")
         if os.path.exists(db_path):
-            os.remove(os.path.join(self.bin_dir, name))
-            os.remove(db_path)
-            print(f"[+] ELIMINATED: {name} purged from system.")
+            try:
+                os.remove(os.path.join(self.bin_dir, name))
+                os.remove(db_path)
+                print(f"[+] ELIMINATED: {name} purged from system.")
+            except: pass
         else:
             print(f"[*] SEEKING OS: Eliminating {name} via secondary layer...")
             subprocess.run(['apt-get', 'remove', '-y', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print(f"[+] DONE: {name} neutralized.")
 
 def main():
-    if os.geteuid() != 0:
+    if len(sys.argv) == 1 or sys.argv[1] in ['-h', '--help', 'help']:
+        print("""
+          ____  _      ____   ____  _____      ( )
+         | __ )| |    / __ \ / __ \|  __ \    (   )
+         |  _ \| |   | |  | | |  | | |  | |    (_)
+         | |_) | |___| |__| | |__| | |__| |     v
+         |____/|_____|\____/ \____/|_____/  
+
+         RedUbuntu Predator Package Manager
+         
+         ACTIONS:
+           hunt        Capture a package (.bld, hypernova or OS)
+           eliminate   Purge a package and its traces
+           scout       Analyze a .bld file's DNA
+           forge       Forge a new .bld package from directory
+           bleed       Purify system by shedding unused data
+
+         EXAMPLES:
+           blood hunt nmap
+           blood eliminate hydra
+           blood forge ./tool --out alpha
+        """)
+        sys.exit(0)
+
+    if os.geteuid() != 0 and sys.argv[1] not in ['forge', 'scout']:
         print("[-] ACCESS DENIED: Root privileges required.")
         sys.exit(1)
-    parser = argparse.ArgumentParser(prog='blood')
-    parser.add_argument('action', choices=['hunt', 'eliminate', 'scout', 'bleed'])
-    parser.add_argument('target', nargs='?', help='Target package or name')
+
+    parser = argparse.ArgumentParser(prog='blood', add_help=False)
+    parser.add_argument('action', choices=['hunt', 'eliminate', 'scout', 'forge', 'bleed'])
+    parser.add_argument('target', nargs='?', help='Target')
+    parser.add_argument('--out', help='Output for forge')
     args = parser.parse_args()
+    
     pm = BloodPM()
     if args.action == 'hunt' and args.target: pm.hunt(args.target)
+    elif args.action == 'forge' and args.target:
+        out_name = args.out if args.out else "output"
+        pm.forge(args.target, out_name)
     elif args.action == 'eliminate' and args.target: pm.eliminate(args.target)
+    elif args.action == 'scout' and args.target:
+        dna = pm.scout(args.target)
+        if dna: print(json.dumps(dna, indent=4))
     elif args.action == 'bleed':
         print("[*] BLEEDING: Purifying system veins...")
         subprocess.run(['apt-get', 'autoremove', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("[*] DONE: System is clear.")
-    else: parser.print_help()
 
 if __name__ == "__main__":
     main()
